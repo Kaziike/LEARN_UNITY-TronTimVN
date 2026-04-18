@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.InputSystem;
 
 public class SeekerMechanic : MonoBehaviour
 {
@@ -17,6 +18,26 @@ public class SeekerMechanic : MonoBehaviour
     public float blindfoldPenaltyTime = 5f;
     private bool isBlindedPenalty = false;
     private float blindTimer = 0f;
+
+    private InputAction interactAction;
+
+    void Awake()
+    {
+        interactAction = new InputAction("Interact", InputActionType.Button);
+        interactAction.AddBinding("<Mouse>/leftButton");
+        interactAction.AddBinding("<Keyboard>/e");
+        interactAction.AddBinding("<Gamepad>/buttonWest"); // Nút vuông (PS) hoặc X (Xbox)
+    }
+
+    void OnEnable()
+    {
+        interactAction.Enable();
+    }
+
+    void OnDisable()
+    {
+        interactAction.Disable();
+    }
 
     void Update()
     {
@@ -38,7 +59,7 @@ public class SeekerMechanic : MonoBehaviour
         }
 
         // Bấm chuột trái (hoặc phím E) để phát hiện người trốn
-        if (Input.GetMouseButtonDown(0))
+        if (interactAction.WasPressedThisFrame())
         {
             RaycastForHider();
         }
