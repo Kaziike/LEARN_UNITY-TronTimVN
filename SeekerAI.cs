@@ -27,6 +27,9 @@ public class SeekerAI : MonoBehaviour
     private HiderMechanic markedHider;
     private SeekerMechanic seekerMechanic;
     private HiderMechanic targetHider;
+
+    // Vị trí cuối cùng nhìn thấy hider để sau khi về cột có thể quay lại thẳng chỗ đó
+    private Vector3? lastKnownTargetLocation;
  
     private enum State { Patrol, Chase }
     private State currentState;
@@ -50,6 +53,7 @@ public class SeekerAI : MonoBehaviour
  
     void Update()
     {
+        // Liên tục kiểm tra xem có ai không, ưu tiên việc bắt người đầu tiên nhìn thấy
         if (!targetMarked && CanSeeAnyHider())
         {
             MarkHiderAndRunToPillar();
@@ -95,6 +99,8 @@ public class SeekerAI : MonoBehaviour
                     if (hit.transform == hider.transform || hit.collider.GetComponent<HiderMechanic>() == hider)
                     {
                         targetHider = hider;
+                        // Lưu lại để có thể nhớ sau này
+                        lastKnownTargetLocation = hider.transform.position;
                         return true;
                     }
                 }
@@ -160,6 +166,8 @@ public class SeekerAI : MonoBehaviour
  
         targetMarked = false;
         markedHider = null;
+
+        // Bắt đầu chu trình đuổi bắt mới
         SetNewPatrolPoint();
         currentState = State.Patrol;
     }
@@ -187,6 +195,54 @@ public class SeekerAI : MonoBehaviour
  
     void SetNewPatrolPoint()
     {
+        // 1. Ưu tiên thăm lại chỗ nhìn thấy Hider lúc nãy (để xử lý những người núp chung vị trí!)
+        if (lastKnownTargetLocation.HasValue)
+        {
+            if (NavMesh.SamplePosition(lastKnownTargetLocation.Value, out NavMeshHit kHit, patrolRadius, NavMesh.AllAreas))
+            {
+                patrolPoint = kHit.position;
+                agent.SetDestination(patrolPoint);
+                isPatrolling = true;
+                isIdle = false;
+                lastKnownTargetLocation = null; // Huỷ trí nhớ sau khi đã bắt đầu đi tới đó
+                return;
+            }
+            lastKnownTargetLocation = null;
+        }
+
+        // 2. Đi dò các vật cản gần đây có thể núp được (obstructionMask)
+        Collider[] obstacles = Physics.OverlapSphere(transform.position, patrolRadius, obstructionMask);
+        if (obstacles.Length > 0)
+        {
+            // Tránh Seeker check nhầm chính mình hoặc Hider đang đứng
+            System.Collections.Generic.List<Collider> validObstacles = new System.Collections.Generic.List<Collider>();
+            foreach(var obs in obstacles)
+            {
+                if (obs.gameObject != this.gameObject && obs.GetComponent<HiderMechanic>() == null)
+                    validObstacles.Add(obs);
+            }
+
+            if (validObstacles.Count > 0)
+            {
+                Collider targetObstacle = validObstacles[Random.Range(0, validObstacles.Count)];
+                
+                // Múi giờ dò tìm: Random một góc nhìn xung quanh tâm vật cản
+                Vector3 randomOffset = Random.insideUnitSphere * (targetObstacle.bounds.extents.magnitude + 2.5f);
+                randomOffset.y = 0;
+                Vector3 offsetPoint = targetObstacle.bounds.center + randomOffset;
+
+                if (NavMesh.SamplePosition(offsetPoint, out NavMeshHit obsHit, 5f, NavMesh.AllAreas))
+                {
+                    patrolPoint = obsHit.position;
+                    agent.SetDestination(patrolPoint);
+                    isPatrolling = true;
+                    isIdle = false;
+                    return;
+                }
+            }
+        }
+
+        // 3. (Fallback) Nếu trót ở bãi trống thì đi random
         Vector3 randomDirection = Random.insideUnitSphere * patrolRadius + transform.position;
  
         if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, patrolRadius, NavMesh.AllAreas))
@@ -209,7 +265,6 @@ public class SeekerAI : MonoBehaviour
         }
         else if (agent.isOnNavMesh && player != null)
         {
-            // Fallback to player if targetHider isn't set somehow
             agent.SetDestination(player.position);
         }
     }

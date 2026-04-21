@@ -7,7 +7,7 @@ public class HiderAI : MonoBehaviour
     public LayerMask obstructionMask;
     public float coverSearchRadius = 30f;
     public float safeDistanceFromSeeker = 15f;
-    public float seekRadiusForBase = 40f; // Khoảng cách xa so với Seeker để Hider bắt đầu chạy về cột
+    public float seekRadiusForBase = 40f; 
     
     private NavMeshAgent agent;
     private HiderMechanic hiderMechanic;
@@ -70,25 +70,20 @@ public class HiderAI : MonoBehaviour
 
         foreach (var col in colliders)
         {
-            // Tránh tìm kiếm cover trên các collider không phù hợp (vd: chính bản thân, seeker)
             if (col.gameObject == gameObject || (HideAndSeekManager.Instance != null && HideAndSeekManager.Instance.seeker != null && col.gameObject == HideAndSeekManager.Instance.seeker.gameObject)) 
                 continue;
 
-            // Tìm vị trí nấp phía sau vật cản so với góc nhìn của seeker
             Vector3 directionFromSeekerToObstacle = (col.transform.position - seekerPosition).normalized;
             
-            // Lấy khoảng cách xa hơn một chút so với mép collider
             Vector3 potentialCoverPos = col.transform.position + directionFromSeekerToObstacle * (col.bounds.extents.magnitude + 1.5f);
 
             if (NavMesh.SamplePosition(potentialCoverPos, out NavMeshHit hit, 5f, NavMesh.AllAreas))
             {
-                // Ưu tiên nấp vị trí xa seeker, và gần với mình
                 float distToSeeker = Vector3.Distance(hit.position, seekerPosition);
                 float distFromMe = Vector3.Distance(transform.position, hit.position);
 
                 float score = distToSeeker * 2f - distFromMe;
                 
-                // Đảm bảo tại vị trí nấp mới này không bị seeker nhìn tới
                 if (IsPositionHiddenFromSeeker(hit.position, seekerPosition))
                 {
                     if (score > bestScore)
@@ -109,7 +104,6 @@ public class HiderAI : MonoBehaviour
         }
         else
         {
-            // Fallback: Nếu không tìm thấy, chạy né ra xa Seeker
             Vector3 fleeDir = (transform.position - seekerPosition).normalized;
             Vector3 fleePos = transform.position + fleeDir * 15f;
             if (NavMesh.SamplePosition(fleePos, out NavMeshHit fleeHit, 10f, NavMesh.AllAreas))
@@ -126,11 +120,9 @@ public class HiderAI : MonoBehaviour
         Vector3 direction = (seekerPos - pos).normalized;
         float distance = Vector3.Distance(pos, seekerPos);
         
-        // Raycast từ vị trí với độ cao nhỏ (vd: tầm eo) về hướng seeker
         Ray ray = new Ray(pos + Vector3.up * 1f, direction);
         if (Physics.Raycast(ray, out RaycastHit hit, distance, obstructionMask))
         {
-            // Hit vào vật cản là bị khuất tầm nhìn (tốt)
             return true; 
         }
         return false;
@@ -144,7 +136,6 @@ public class HiderAI : MonoBehaviour
         }
         else if (Vector3.Distance(transform.position, seekerPosition) < safeDistanceFromSeeker && !IsPositionHiddenFromSeeker(transform.position, seekerPosition))
         {
-            // Nếu đang di chuyển mà Seeker phát hiện / lại gần thì tìm góc núp khác
             currentState = State.FindCover;
         }
     }
@@ -153,7 +144,6 @@ public class HiderAI : MonoBehaviour
     {
         float distanceToSeeker = Vector3.Distance(transform.position, seekerPosition);
         
-        // Nếu seeker tìm thấy hoặc tới quá gần, bỏ chạy và tìm chỗ khác
         if (!IsPositionHiddenFromSeeker(transform.position, seekerPosition))
         {
             if (distanceToSeeker < safeDistanceFromSeeker * 1.5f) 
@@ -163,13 +153,13 @@ public class HiderAI : MonoBehaviour
             }
         }
 
-        // Logic Mạo Hiểm (Thắng): Nếu Seeker đi quá xa, ta thử chạy về Cột
-        if (pillar != null && distanceToSeeker > seekRadiusForBase)
+        // Đã nới lỏng mức độ ưu tiên chạy về cột: 
+        if (pillar != null && distanceToSeeker > seekRadiusForBase * 0.75f) // Giảm khoảng cách yêu cầu
         {
             float distanceToPillar = Vector3.Distance(transform.position, pillar.position);
             
-            // Quyết định chạy khi Cột cách gần ta hơn so với Seeker cách ta
-            if (distanceToPillar < distanceToSeeker * 0.8f) // Dư dả 1 chút an toàn
+            // Quyết định chạy khi Cột cách gần ta hơn so với bản thân tới Seeker rất nhiều
+            if (distanceToPillar < distanceToSeeker * 1.25f) 
             {
                 currentState = State.RunToPillar;
                 if (agent.isOnNavMesh) agent.SetDestination(pillar.position);
@@ -188,20 +178,33 @@ public class HiderAI : MonoBehaviour
         
         float distanceToSeeker = Vector3.Distance(transform.position, seekerPosition);
         
-        // Nếu trong lúc chạy về Cột mà Seeker lại gần / nhìn thấy, ta huỷ kế hoạch và đi trốn lại
         if (!IsPositionHiddenFromSeeker(transform.position, seekerPosition) && distanceToSeeker < safeDistanceFromSeeker)
         {
             currentState = State.FindCover;
             return;
         }
         
-        // Tới nơi đập Cột
-        if (Vector3.Distance(transform.position, pillar.position) <= 2.5f)
+        float distanceToPillar = Vector3.Distance(transform.position, pillar.position);
+        
+        // Cải tiến độ nhận diện check in (chống dính cản bới hitbox của cột lớn)
+        bool isCloseEnough = false;
+
+        // Nếu hitbox của Hider cách trọng tâm Cột dưới 4 mét (mở rộng phạm vi chạm cột)
+        if (distanceToPillar <= 4f) 
+            isCloseEnough = true;
+            
+        // HOẶC nếu Navmesh Agent đã đi đến hết chặng đường (không tính bị stuck đứng ngoài mép collider cột)
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f && distanceToPillar < 8f)
+            isCloseEnough = true;
+
+        if (isCloseEnough)
         {
             if (hiderMechanic != null && !hiderMechanic.isSafe && !hiderMechanic.isEliminated)
             {
                 hiderMechanic.CheckInAtBase();
-                agent.ResetPath();
+                
+                if (agent.isOnNavMesh) agent.ResetPath();
+                currentState = State.Idle;
             }
         }
     }
