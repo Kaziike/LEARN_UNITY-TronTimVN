@@ -39,8 +39,43 @@ public class HiderAI : MonoBehaviour
             return;
         }
 
+        // 1. Kiểm tra độc lập: Luôn tự công nhận IsSafe nếu lỡ chạm/đứng sát Cột, bất kể đang trong State nào
+        // if (pillar != null && hiderMechanic != null && !hiderMechanic.isSafe && !hiderMechanic.isEliminated)
+        // {
+        //     float checkDist = Vector3.Distance(transform.position, pillar.position);
+        //     Collider rCollider = pillar.GetComponent<Collider>();
+            
+        //     if (rCollider != null)
+        //     {
+        //         Vector3 closest = rCollider.ClosestPoint(transform.position);
+        //         if (Vector3.Distance(transform.position, closest) <= 3.5f)
+        //         {
+        //             hiderMechanic.CheckInAtBase();
+        //             if (agent.isOnNavMesh) agent.ResetPath();
+        //             currentState = State.Idle;
+        //             return;
+        //         }
+        //     }
+        //     else if (checkDist <= 5f)
+        //     {
+        //         hiderMechanic.CheckInAtBase();
+        //         if (agent.isOnNavMesh) agent.ResetPath();
+        //         currentState = State.Idle;
+        //         return;
+        //     }
+        // }
+
         Transform seeker = HideAndSeekManager.Instance != null ? HideAndSeekManager.Instance.seeker : null;
-        if (seeker == null) return;
+        // if (seeker == null)
+        // {
+        //     // Nếu bị xóa Seeker (hoặc chưa gán), Hider sẽ tự động lao về đích luôn để test!
+        //     if (pillar != null)
+        //     {
+        //         currentState = State.RunToPillar;
+        //         if (agent.isOnNavMesh) agent.SetDestination(pillar.position);
+        //     }
+        //     return;
+        // }
 
         switch (currentState)
         {
@@ -153,13 +188,23 @@ public class HiderAI : MonoBehaviour
             }
         }
 
-        // Đã nới lỏng mức độ ưu tiên chạy về cột: 
-        if (pillar != null && distanceToSeeker > seekRadiusForBase * 0.75f) // Giảm khoảng cách yêu cầu
+        if (pillar != null)
         {
             float distanceToPillar = Vector3.Distance(transform.position, pillar.position);
-            
-            // Quyết định chạy khi Cột cách gần ta hơn so với bản thân tới Seeker rất nhiều
-            if (distanceToPillar < distanceToSeeker * 1.25f) 
+            bool shouldRunToBase = false;
+
+            // Nếu người tìm ở rất xa, và ta gần Cột
+            if (distanceToSeeker > safeDistanceFromSeeker * 1.5f && distanceToPillar < distanceToSeeker * 1.5f)
+            {
+                shouldRunToBase = true;
+            }
+            // HOẶC nếu Cột cực kì gần ngay trước mặt, mạo hiểm chạy vào luôn
+            else if (distanceToPillar < distanceToSeeker * 0.7f && distanceToPillar < 20f)
+            {
+                shouldRunToBase = true;
+            }
+
+            if (shouldRunToBase)
             {
                 currentState = State.RunToPillar;
                 if (agent.isOnNavMesh) agent.SetDestination(pillar.position);
@@ -178,34 +223,14 @@ public class HiderAI : MonoBehaviour
         
         float distanceToSeeker = Vector3.Distance(transform.position, seekerPosition);
         
+        // Nếu trong lúc chạy về Cột mà Seeker lại gần / nhìn thấy, ta huỷ kế hoạch và đi trốn lại
         if (!IsPositionHiddenFromSeeker(transform.position, seekerPosition) && distanceToSeeker < safeDistanceFromSeeker)
         {
             currentState = State.FindCover;
             return;
         }
         
-        float distanceToPillar = Vector3.Distance(transform.position, pillar.position);
-        
-        // Cải tiến độ nhận diện check in (chống dính cản bới hitbox của cột lớn)
-        bool isCloseEnough = false;
-
-        // Nếu hitbox của Hider cách trọng tâm Cột dưới 4 mét (mở rộng phạm vi chạm cột)
-        if (distanceToPillar <= 4f) 
-            isCloseEnough = true;
-            
-        // HOẶC nếu Navmesh Agent đã đi đến hết chặng đường (không tính bị stuck đứng ngoài mép collider cột)
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.5f && distanceToPillar < 8f)
-            isCloseEnough = true;
-
-        if (isCloseEnough)
-        {
-            if (hiderMechanic != null && !hiderMechanic.isSafe && !hiderMechanic.isEliminated)
-            {
-                hiderMechanic.CheckInAtBase();
-                
-                if (agent.isOnNavMesh) agent.ResetPath();
-                currentState = State.Idle;
-            }
-        }
+        // Ghi chú: Việc Đập cột IsSafe đã được đưa ra hàm Update() kiểm tra mỗi Frame để đảm bảo ăn 100% khi tới sát!
+        // Nếu kẹt Agent ở đây, việc ResetPath sẽ được xử lý trên kia.
     }
 }

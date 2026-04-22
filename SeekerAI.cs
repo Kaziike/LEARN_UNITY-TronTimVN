@@ -91,7 +91,7 @@ public class SeekerAI : MonoBehaviour
 
             Vector3 direction = (hider.transform.position - transform.position).normalized;
             float angle = Vector3.Angle(transform.forward, direction);
-            if (angle <= viewAngle * 0.5f)
+            if (angle <= viewAngle * 1f)
             {
                 Ray ray = new Ray(transform.position + Vector3.up * 1.2f, direction);
                 if (Physics.Raycast(ray, out RaycastHit hit, detectionRadius, obstructionMask))
