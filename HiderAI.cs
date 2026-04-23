@@ -39,43 +39,10 @@ public class HiderAI : MonoBehaviour
             return;
         }
 
-        // 1. Kiểm tra độc lập: Luôn tự công nhận IsSafe nếu lỡ chạm/đứng sát Cột, bất kể đang trong State nào
-        // if (pillar != null && hiderMechanic != null && !hiderMechanic.isSafe && !hiderMechanic.isEliminated)
-        // {
-        //     float checkDist = Vector3.Distance(transform.position, pillar.position);
-        //     Collider rCollider = pillar.GetComponent<Collider>();
-            
-        //     if (rCollider != null)
-        //     {
-        //         Vector3 closest = rCollider.ClosestPoint(transform.position);
-        //         if (Vector3.Distance(transform.position, closest) <= 3.5f)
-        //         {
-        //             hiderMechanic.CheckInAtBase();
-        //             if (agent.isOnNavMesh) agent.ResetPath();
-        //             currentState = State.Idle;
-        //             return;
-        //         }
-        //     }
-        //     else if (checkDist <= 5f)
-        //     {
-        //         hiderMechanic.CheckInAtBase();
-        //         if (agent.isOnNavMesh) agent.ResetPath();
-        //         currentState = State.Idle;
-        //         return;
-        //     }
-        // }
+        
 
         Transform seeker = HideAndSeekManager.Instance != null ? HideAndSeekManager.Instance.seeker : null;
-        // if (seeker == null)
-        // {
-        //     // Nếu bị xóa Seeker (hoặc chưa gán), Hider sẽ tự động lao về đích luôn để test!
-        //     if (pillar != null)
-        //     {
-        //         currentState = State.RunToPillar;
-        //         if (agent.isOnNavMesh) agent.SetDestination(pillar.position);
-        //     }
-        //     return;
-        // }
+        
 
         switch (currentState)
         {
@@ -230,7 +197,16 @@ public class HiderAI : MonoBehaviour
             return;
         }
         
-        // Ghi chú: Việc Đập cột IsSafe đã được đưa ra hàm Update() kiểm tra mỗi Frame để đảm bảo ăn 100% khi tới sát!
-        // Nếu kẹt Agent ở đây, việc ResetPath sẽ được xử lý trên kia.
+    //     // KIỂM TRA CHECK-IN DÀNH CHO AI
+    //     // Nếu AI đã tiến tới rất gần cột, tự động check-in thay vì chờ Trigger vật lý
+    //     float distanceToPillar = Vector3.Distance(transform.position, pillar.position);
+    //     if (distanceToPillar <= agent.stoppingDistance + 2.5f)
+    //     {
+    //         if (hiderMechanic != null)
+    //         {
+    //             hiderMechanic.CheckInAtBase();
+    //         }
+    //     }
+        
     }
 }
