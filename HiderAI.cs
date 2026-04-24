@@ -17,6 +17,9 @@ public class HiderAI : MonoBehaviour
     private State currentState;
     
     private Vector3 currentCoverPosition;
+    
+    // Thêm tham chiếu đến Animator
+    public Animator animator;
 
     void Start()
     {
@@ -42,7 +45,6 @@ public class HiderAI : MonoBehaviour
         
 
         Transform seeker = HideAndSeekManager.Instance != null ? HideAndSeekManager.Instance.seeker : null;
-        
 
         switch (currentState)
         {
@@ -59,6 +61,16 @@ public class HiderAI : MonoBehaviour
             case State.RunToPillar:
                 RunToPillar(seeker.position);
                 break;
+        }
+        if(currentState == State.FindCover || currentState == State.MoveToCover || currentState == State.RunToPillar)
+        {
+            animator.SetTrigger("isWalking");
+            
+        }
+        if(currentState == State.Idle || currentState == State.Hide)
+        {
+            animator.SetTrigger("idle");
+            
         }
     }
 
@@ -197,16 +209,6 @@ public class HiderAI : MonoBehaviour
             return;
         }
         
-    //     // KIỂM TRA CHECK-IN DÀNH CHO AI
-    //     // Nếu AI đã tiến tới rất gần cột, tự động check-in thay vì chờ Trigger vật lý
-    //     float distanceToPillar = Vector3.Distance(transform.position, pillar.position);
-    //     if (distanceToPillar <= agent.stoppingDistance + 2.5f)
-    //     {
-    //         if (hiderMechanic != null)
-    //         {
-    //             hiderMechanic.CheckInAtBase();
-    //         }
-    //     }
         
     }
 }
