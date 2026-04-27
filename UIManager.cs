@@ -13,7 +13,7 @@ public class UIManager : MonoBehaviour
     public GameObject guessNamePanel;    // Bảng để Seeker chọn tên người trốn
     public Transform namesContainer;     // Chứa các nút tên
     public GameObject nameButtonPrefab;  // Prefab nút có chứa Text để hiển thị tên
-    
+    public GameObject Time;
     public Text timerText;               // Hiện thời gian đếm ngược
     public Text gameMessageText;         // Hiện thông báo chung
 
@@ -45,6 +45,10 @@ public class UIManager : MonoBehaviour
         if (timerText != null)
         {
             timerText.text = Mathf.CeilToInt(time).ToString() + "s";
+        }
+        if (timerText != null && timerText.text == "0s")
+        {
+            Time.SetActive(false);
         }
     }
 
