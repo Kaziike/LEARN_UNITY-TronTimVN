@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.Netcode;
 
 [RequireComponent(typeof(CharacterController))]
-public class ControllNPC : MonoBehaviour
+public class ControllNPC : NetworkBehaviour
 {
     public float moveSpeed = 5f;
     public float sprintMultiplier = 1.5f;
@@ -67,6 +68,8 @@ public class ControllNPC : MonoBehaviour
 
     void Update()
     {
+        if (!IsOwner) return;
+
         if (canMove)
         {
             HandleMovement();
@@ -119,6 +122,7 @@ public class ControllNPC : MonoBehaviour
         {
             animator.SetBool("Speed", false);
         }
+        
         
         // Thay vì Input.GetKeyDown(KeyCode.Space)
         if (jumpAction.WasPressedThisFrame() && IsReallyGrounded())

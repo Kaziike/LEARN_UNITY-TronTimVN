@@ -110,7 +110,7 @@ public class HideAndSeekManager : MonoBehaviour
         {
             activeHiders.Remove(hider);
             eliminatedHiders.Add(hider);
-            hider.OnEliminated();
+            hider.OnEliminatedClientRpc();
             CheckGameOver();
         }
     }
@@ -122,7 +122,7 @@ public class HideAndSeekManager : MonoBehaviour
         {
             activeHiders.Remove(hider);
             safeHiders.Add(hider);
-            hider.OnSafe();
+            hider.OnSafeClientRpc();
             CheckGameOver();
         }
     }

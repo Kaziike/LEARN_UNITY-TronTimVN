@@ -1,8 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
+using Unity.Netcode;
 
-public class SeekerMechanic : MonoBehaviour
+public class SeekerMechanic : NetworkBehaviour
 {
     public float interactionRange = 10f;
     public LayerMask hiderLayer;
@@ -41,6 +42,8 @@ public class SeekerMechanic : MonoBehaviour
 
     void Update()
     {
+        if (!IsOwner) return;
+
         // Nếu không phải là chặng Seeking hoặc đang bị phạt mù thì không cho đánh dấu
         if (HideAndSeekManager.Instance.currentState != HideAndSeekManager.GameState.SeekingPhase)
             return;
@@ -111,53 +114,80 @@ public class SeekerMechanic : MonoBehaviour
         Debug.Log("Seeker đoán mục tiêu tên là: " + nameGuess + ". Hãy quay về Base để xác nhận.");
         UIManager.Instance.ShowMessage("Đã đánh dấu báo cáo: " + nameGuess + ". Chạy về Cột để xác nhận!");
         
-        // Thông báo cho Hider rằng họ đã bị đánh dấu
+        // Thông báo cho Hider rằng họ đã bị đánh dấu qua Server
         if (currentMarkedHider != null)
         {
-            currentMarkedHider.OnMarkedAsTarget();
+            MarkHiderServerRpc(currentMarkedHider.GetComponent<NetworkObject>().NetworkObjectId);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void MarkHiderServerRpc(ulong hiderNetworkObjectId)
+    {
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(hiderNetworkObjectId, out NetworkObject hiderObj))
+        {
+            hiderObj.GetComponent<HiderMechanic>().OnMarkedAsTargetClientRpc();
         }
     }
 
     // Được gọi khi Seeker đập cột (Interact với BasePillar)
     public void ConfirmMarkAtBase()
     {
+        if (!IsOwner) return;
+
         if (currentMarkedHider == null || string.IsNullOrEmpty(markedNameGuess))
         {
             UIManager.Instance.ShowMessage("Chưa đánh dấu ai!");
             return;
         }
 
-        // Kiểm tra đúng / sai
-        if (currentMarkedHider.hiderName == markedNameGuess)
-        {
-            // Đoán đúng
-            UIManager.Instance.ShowMessage("Đoán ĐÚNG! " + markedNameGuess + " đã bị loại!");
-            HideAndSeekManager.Instance.EliminateHider(currentMarkedHider);
-        }
-        else
-        {
-            // Đoán sai
-            wrongGuessCount++;
-            UIManager.Instance.ShowMessage("Đoán SAI! " + markedNameGuess + " không phải là người đó!");
-
-            // Hủy trạng thái bị đánh dấu của hider, vì seeker đã đoán sai
-            currentMarkedHider.OnUnmarked();
-
-            if (wrongGuessCount >= maxWrongGuesses)
-            {
-                ApplyBlindfoldPenalty();
-                wrongGuessCount = 0; // Reset lại nấc đếm
-            }
-            else
-            {
-                // Có thể trừ thêm thời gian của trận đấu ở GameManager
-                Debug.Log("Trừ thời gian do đoán sai!");
-            }
-        }
+        ConfirmMarkAtBaseServerRpc(currentMarkedHider.GetComponent<NetworkObject>().NetworkObjectId, markedNameGuess);
 
         // Reset bộ nhớ
         currentMarkedHider = null;
         markedNameGuess = "";
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void ConfirmMarkAtBaseServerRpc(ulong hiderNetworkObjectId, string guessName)
+    {
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(hiderNetworkObjectId, out NetworkObject hiderObj))
+        {
+            var targetHider = hiderObj.GetComponent<HiderMechanic>();
+            if (targetHider.hiderName == guessName)
+            {
+                // Đoán đúng
+                HideAndSeekManager.Instance.EliminateHider(targetHider);
+                ShowMessageClientRpc("Đoán ĐÚNG! " + guessName + " đã bị loại!");
+            }
+            else
+            {
+                // Đoán sai
+                targetHider.OnUnmarkedClientRpc();
+                WrongGuessClientRpc(guessName);
+            }
+        }
+    }
+
+    [ClientRpc]
+    private void ShowMessageClientRpc(string msg)
+    {
+        if (IsOwner) UIManager.Instance.ShowMessage(msg);
+    }
+
+    [ClientRpc]
+    private void WrongGuessClientRpc(string guessName)
+    {
+        if (!IsOwner) return;
+        
+        wrongGuessCount++;
+        UIManager.Instance.ShowMessage("Đoán SAI! " + guessName + " không phải là người đó!");
+
+        if (wrongGuessCount >= maxWrongGuesses)
+        {
+            ApplyBlindfoldPenalty();
+            wrongGuessCount = 0; // Reset lại nấc đếm
+        }
     }
 
     private void ApplyBlindfoldPenalty()

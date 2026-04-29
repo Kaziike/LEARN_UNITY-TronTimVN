@@ -1,6 +1,7 @@
 using UnityEngine;
+using Unity.Netcode;
 
-public class HiderMechanic : MonoBehaviour
+public class HiderMechanic : NetworkBehaviour
 {
     public string hiderName = "Player"; // Tên của Hider (Ví dụ: "An", "Bình")
     
@@ -8,37 +9,41 @@ public class HiderMechanic : MonoBehaviour
     public bool isSafe = false;
     public bool isMarked = false; // Đã lọt vào tầm ngắm bị gọi tên nhưng chưa đập cột
 
-    void Start()
+    public override void OnNetworkSpawn()
     {
-        // Khi spawn, đăng ký Hider với GameManager
-        if (HideAndSeekManager.Instance != null)
+        base.OnNetworkSpawn();
+        // Khi spawn, đăng ký Hider với GameManager (chỉ Server quản lý logic chính)
+        if (IsServer && HideAndSeekManager.Instance != null)
         {
             HideAndSeekManager.Instance.RegisterHider(this);
         }
     }
 
-    public void OnMarkedAsTarget()
+    [ClientRpc]
+    public void OnMarkedAsTargetClientRpc()
     {
         isMarked = true;
         // Bật một UI nhỏ (VD: Dấu chấm than đỏ trên đầu Hider hoặc thông báo lên màn hình Hider)
         Debug.Log("HIDER: Bạn đã bị Seeker đoán tên!");
-        if (this.gameObject.CompareTag("Player"))
+        if (IsOwner && this.gameObject.CompareTag("Player"))
         {
              UIManager.Instance.ShowMessage("CẢNH BÁO: BẠN ĐÃ BỊ ĐỌC TÊN, HÃY CHẠY VỀ CỘT NHANH!!!");
         }
     }
 
-    public void OnUnmarked()
+    [ClientRpc]
+    public void OnUnmarkedClientRpc()
     {
         // Nhờ Seeker đoán sai, ta được huỷ lệnh
         isMarked = false;
-         if (this.gameObject.CompareTag("Player"))
+         if (IsOwner && this.gameObject.CompareTag("Player"))
         {
              UIManager.Instance.ShowMessage("May quá, Seeker đoán sai tên của bạn rồi!");
         }
     }
 
-    public void OnEliminated()
+    [ClientRpc]
+    public void OnEliminatedClientRpc()
     {
         isEliminated = true;
         isMarked = false;
@@ -48,7 +53,8 @@ public class HiderMechanic : MonoBehaviour
         this.gameObject.SetActive(false);
     }
 
-    public void OnSafe()
+    [ClientRpc]
+    public void OnSafeClientRpc()
     {
         isSafe = true;
         isMarked = false;
@@ -61,8 +67,16 @@ public class HiderMechanic : MonoBehaviour
     public void CheckInAtBase()
     {
         if (isEliminated || isSafe) return;
+        if (IsOwner)
+        {
+            CheckInAtBaseServerRpc();
+        }
+    }
 
-        // Báo cho Game Manager là đã về đích
+    [ServerRpc(RequireOwnership = false)]
+    public void CheckInAtBaseServerRpc()
+    {
+        if (isEliminated || isSafe) return;
         HideAndSeekManager.Instance.SafelyCheckInHider(this);
     }
 }

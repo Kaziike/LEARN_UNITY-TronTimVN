@@ -23,6 +23,13 @@ public class HiderAI : MonoBehaviour
 
     void Start()
     {
+        // Tắt AI nếu đang chơi Multiplayer
+        if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            enabled = false;
+            return;
+        }
+
         agent = GetComponent<NavMeshAgent>();
         hiderMechanic = GetComponent<HiderMechanic>();
         

@@ -115,7 +115,7 @@ public class SeekerAI : MonoBehaviour
         if (targetHider == null || pillar == null) return;
  
         markedHider = targetHider;
-        markedHider.OnMarkedAsTarget();
+        markedHider.OnMarkedAsTargetClientRpc();
         targetMarked = true;
         currentState = State.Chase;
         agent.SetDestination(pillar.position);
