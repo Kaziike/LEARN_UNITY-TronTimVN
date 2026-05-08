@@ -66,6 +66,43 @@ public class ControllNPC : NetworkBehaviour
         controller = GetComponent<CharacterController>();
     }
 
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        if (!IsOwner)
+        {
+            // Tắt Camera, AudioListener và CameraPivot của những người chơi khác
+            Camera[] cams = GetComponentsInChildren<Camera>();
+            foreach (var cam in cams) cam.gameObject.SetActive(false);
+
+            AudioListener[] audios = GetComponentsInChildren<AudioListener>();
+            foreach (var a in audios) a.enabled = false;
+
+            CameraPivot[] pivots = GetComponentsInChildren<CameraPivot>();
+            foreach (var p in pivots) p.gameObject.SetActive(false);
+        }
+        else
+        {
+            // Nếu là người chơi của mình (Local Player)
+            CameraPivot myPivot = GetComponentInChildren<CameraPivot>();
+            if (myPivot == null)
+            {
+                // Trường hợp CameraPivot nằm ngoài Scene (không nằm trong Prefab)
+                CameraPivot scenePivot = FindObjectOfType<CameraPivot>();
+                if (scenePivot != null)
+                {
+                    scenePivot.target = this.transform;
+                }
+            }
+            else
+            {
+                // Chắc chắn target đang hướng vào mình
+                myPivot.target = this.transform;
+            }
+        }
+    }
+
     void Update()
     {
         if (!IsOwner) return;
