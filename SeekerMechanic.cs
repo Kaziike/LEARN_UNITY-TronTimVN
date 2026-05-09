@@ -65,17 +65,7 @@ public class SeekerMechanic : NetworkBehaviour
         if (interactAction.WasPressedThisFrame())
         {
             RaycastForHider();
-           
         }
-         if(UIManager.Instance.guessNamePanel.activeSelf)
-            {
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
-            }else
-            {
-                Cursor.lockState = CursorLockMode.Locked;
-                Cursor.visible = false;
-            }
     }
 
     void RaycastForHider()

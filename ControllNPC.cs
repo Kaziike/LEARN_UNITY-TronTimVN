@@ -20,7 +20,7 @@ public class ControllNPC : NetworkBehaviour
     private InputAction moveAction;
     private InputAction sprintAction;
     private InputAction jumpAction;
-
+    private InputAction lockemouseAction;
     void Awake()
     {
         // Khởi tạo Input Actions thông qua code để không cần phụ thuộc vào file InputActionAsset trong Editor
@@ -38,6 +38,10 @@ public class ControllNPC : NetworkBehaviour
             .With("Right", "<Keyboard>/rightArrow");
         moveAction.AddBinding("<Gamepad>/leftStick");
 
+        //Khóa chuột
+        lockemouseAction = new InputAction("LockMouse", InputActionType.Button, "<keyboard>/l");
+
+        
         // Chạy nhanh (Left Shift hoặc Left Trigger trên Gamepad)
         sprintAction = new InputAction("Sprint", InputActionType.Button, "<Keyboard>/leftShift");
         sprintAction.AddBinding("<Gamepad>/leftTrigger");
@@ -52,6 +56,7 @@ public class ControllNPC : NetworkBehaviour
         moveAction.Enable();
         sprintAction.Enable();
         jumpAction.Enable();
+        lockemouseAction.Enable();
     }
 
     void OnDisable()
@@ -59,6 +64,7 @@ public class ControllNPC : NetworkBehaviour
         moveAction.Disable();
         sprintAction.Disable();
         jumpAction.Disable();
+        lockemouseAction.Disable();
     }
 
     void Start()
@@ -116,6 +122,21 @@ public class ControllNPC : NetworkBehaviour
             // Vẫn áp dụng gia tốc trọng trường nhưng khóa input đi lại, ngưng animation
             if (animator != null) animator.SetBool("Speed", false);
         }
+        // Kiểm tra xem bảng UI đoán tên có đang bật không
+        bool isUIPanelOpen = (UIManager.Instance != null && UIManager.Instance.guessNamePanel != null && UIManager.Instance.guessNamePanel.activeSelf);
+
+        // Mở khóa chuột khi GIỮ phím L HOẶC khi đang mở bảng chọn tên
+        if(lockemouseAction.IsPressed() || isUIPanelOpen)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+       
         ApplyGravity();
        
     }

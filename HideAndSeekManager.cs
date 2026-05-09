@@ -1,7 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Netcode;
 
-public class HideAndSeekManager : MonoBehaviour
+public class HideAndSeekManager : NetworkBehaviour
 {
     public static HideAndSeekManager Instance { get; private set; }
 
@@ -35,27 +36,79 @@ public class HideAndSeekManager : MonoBehaviour
 
     private void Start()
     {
-        StartGame();
+        currentState = GameState.Setup; // Bắt đầu ở chế độ chờ
     }
 
-    public void StartGame()
+    [ServerRpc(RequireOwnership = false)]
+    public void StartGameServerRpc()
+    {
+        if (currentState != GameState.Setup) return;
+        StartGameClientRpc();
+    }
+
+    [ClientRpc]
+    public void StartGameClientRpc()
     {
         currentState = GameState.HidingPhase;
         currentTimer = hidingTimeLimit;
 
-        // Bật màn hình đen (mù tạm thời) cho Seeker lúc bắt đầu đếm
-        if (UIManager.Instance != null)
+        TeleportLocalPlayerToPillar();
+
+        ControllNPC localPlayer = GetLocalPlayer();
+        bool isLocalSeeker = (localPlayer != null && localPlayer.GetComponent<SeekerMechanic>() != null);
+
+        if (isLocalSeeker)
         {
-            UIManager.Instance.ShowBlindfold(true, "Đang nhắm mắt...");
+            if (UIManager.Instance != null)
+                UIManager.Instance.ShowBlindfold(true, "Đang nhắm mắt...");
+            
+            if (localPlayer != null)
+                localPlayer.canMove = false; // Khóa Seeker
+        }
+        else
+        {
+            if (UIManager.Instance != null)
+                UIManager.Instance.ShowMessage("Trò chơi bắt đầu! Nhanh đi trốn đi!");
         }
 
-        if (seeker != null)
-        {
-            ControllNPC npc = seeker.GetComponent<ControllNPC>();
-            if (npc != null) npc.canMove = false; // Khóa Seeker đứng yên
-        }
+        Debug.Log("GAME START: Hiding Phase.");
+    }
 
-        Debug.Log("GAME START: Hiding Phase. Seeker is blindfolded.");
+    private ControllNPC GetLocalPlayer()
+    {
+        ControllNPC[] players = FindObjectsOfType<ControllNPC>();
+        foreach(var p in players)
+        {
+            if(p.IsOwner) return p;
+        }
+        return null;
+    }
+
+    private void TeleportLocalPlayerToPillar()
+    {
+        ControllNPC localPlayer = GetLocalPlayer();
+        if (localPlayer == null) return;
+
+        BasePillar pillar = FindObjectOfType<BasePillar>();
+        if (pillar != null)
+        {
+            CharacterController cc = localPlayer.GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+
+            // Random vị trí quanh cột (bán kính 3 -> 6)
+            Vector2 randCircle = Random.insideUnitCircle.normalized * Random.Range(3f, 6f);
+            Vector3 targetPos = pillar.transform.position + new Vector3(randCircle.x, 0, randCircle.y);
+            
+            if (Physics.Raycast(targetPos + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 10f))
+            {
+                targetPos.y = hit.point.y + 0.1f;
+            }
+
+            localPlayer.transform.position = targetPos;
+            localPlayer.transform.LookAt(pillar.transform.position);
+
+            if (cc != null) cc.enabled = true;
+        }
     }
 
     private void Update()
@@ -67,29 +120,40 @@ public class HideAndSeekManager : MonoBehaviour
             if (UIManager.Instance != null)
                 UIManager.Instance.UpdateTimerUI(currentTimer);
 
-            if (currentTimer <= 0)
+            if (IsServer && currentTimer <= 0)
             {
-                StartSeekingPhase();
+                currentState = GameState.SeekingPhase; // Để Server không gọi liên tục
+                StartSeekingPhaseClientRpc();
             }
         }
     }
 
-    public void StartSeekingPhase()
+    [ClientRpc]
+    public void StartSeekingPhaseClientRpc()
     {
         currentState = GameState.SeekingPhase;
 
-        // Tắt mù cho Seeker, bắt đầu cho phép đi tìm
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.ShowBlindfold(false);
-            UIManager.Instance.ShowMessage("Bắt đầu đi tìm!");
-            UIManager.Instance.UpdateTimerUI(0); // Có thể đặt lại đếm thời gian trận đấu nếu muốn
-        }
+        ControllNPC localPlayer = GetLocalPlayer();
+        bool isLocalSeeker = (localPlayer != null && localPlayer.GetComponent<SeekerMechanic>() != null);
 
-        if (seeker != null)
+        if (isLocalSeeker)
         {
-            ControllNPC npc = seeker.GetComponent<ControllNPC>();
-            if (npc != null) npc.canMove = true; // Thả cho đi tìm
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowBlindfold(false);
+                UIManager.Instance.ShowMessage("Bắt đầu đi tìm!");
+                UIManager.Instance.UpdateTimerUI(0);
+            }
+            if (localPlayer != null)
+                localPlayer.canMove = true;
+        }
+        else
+        {
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowMessage("Seeker bắt đầu đi tìm rồi!");
+                UIManager.Instance.UpdateTimerUI(0);
+            }
         }
 
         Debug.Log("SEEKING PHASE: Seeker is released.");
