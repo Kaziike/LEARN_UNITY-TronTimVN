@@ -91,9 +91,21 @@ public class SeekerMechanic : NetworkBehaviour
     private List<string> GetAllHiderNames()
     {
         List<string> names = new List<string>();
-        foreach (var h in HideAndSeekManager.Instance.activeHiders)
+        HiderMechanic[] allHiders = FindObjectsOfType<HiderMechanic>();
+        foreach (var h in allHiders)
         {
-            names.Add(h.hiderName);
+            if (!h.isEliminated && !h.isSafe)
+            {
+                PlayerName pName = h.GetComponent<PlayerName>();
+                if (pName != null)
+                {
+                    names.Add(pName.playerName.Value.ToString());
+                }
+                else
+                {
+                    names.Add(h.hiderName); // Fallback
+                }
+            }
         }
         return names;
     }
@@ -144,7 +156,10 @@ public class SeekerMechanic : NetworkBehaviour
         if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(hiderNetworkObjectId, out NetworkObject hiderObj))
         {
             var targetHider = hiderObj.GetComponent<HiderMechanic>();
-            if (targetHider.hiderName == guessName)
+            var pName = hiderObj.GetComponent<PlayerName>();
+            string actualName = (pName != null) ? pName.playerName.Value.ToString() : targetHider.hiderName;
+
+            if (actualName == guessName)
             {
                 // Đoán đúng
                 HideAndSeekManager.Instance.EliminateHider(targetHider);

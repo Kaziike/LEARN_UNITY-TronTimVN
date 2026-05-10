@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using Unity.Netcode;
 
@@ -19,6 +20,10 @@ public class HideAndSeekManager : NetworkBehaviour
     [Header("Game Settings")]
     public float hidingTimeLimit = 60f; // Thời gian Seeker phải nhắm mắt
     private float currentTimer;
+
+    [Header("Prefabs")]
+    public GameObject seekerPrefab;
+    public GameObject hiderPrefab;
 
     [Header("Players Tracking")]
     public Transform seeker; // Người đi bắt
@@ -43,6 +48,50 @@ public class HideAndSeekManager : NetworkBehaviour
     public void StartGameServerRpc()
     {
         if (currentState != GameState.Setup) return;
+
+        var clients = NetworkManager.Singleton.ConnectedClientsList;
+        if (clients.Count == 0) return;
+
+        // Chọn ngẫu nhiên 1 người làm Seeker
+        int seekerIndex = Random.Range(0, clients.Count);
+        ulong seekerClientId = clients[seekerIndex].ClientId;
+
+        BasePillar pillar = FindObjectOfType<BasePillar>();
+        Vector3 pillarPos = pillar != null ? pillar.transform.position : Vector3.zero;
+
+        // Đổi nhân vật cho từng người chơi
+        foreach (var client in clients)
+        {
+            if (client.PlayerObject != null)
+            {
+                client.PlayerObject.Despawn(true); // Xoá nhân vật ở sảnh
+            }
+
+            GameObject prefabToSpawn = (client.ClientId == seekerClientId) ? seekerPrefab : hiderPrefab;
+            if (prefabToSpawn == null)
+            {
+                Debug.LogError("Chưa gán SeekerPrefab hoặc HiderPrefab trong HideAndSeekManager!");
+                continue;
+            }
+
+            GameObject newPlayer = Instantiate(prefabToSpawn);
+
+            // Dịch chuyển ngẫu nhiên quanh cột
+            Vector2 randCircle = Random.insideUnitCircle.normalized * Random.Range(3f, 6f);
+            Vector3 targetPos = pillarPos + new Vector3(randCircle.x, 0, randCircle.y);
+            
+            if (Physics.Raycast(targetPos + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 10f))
+            {
+                targetPos.y = hit.point.y + 0.1f;
+            }
+
+            newPlayer.transform.position = targetPos;
+            newPlayer.transform.LookAt(pillarPos);
+
+            // Giao quyền điều khiển cho Client này
+            newPlayer.GetComponent<NetworkObject>().SpawnAsPlayerObject(client.ClientId, true);
+        }
+
         StartGameClientRpc();
     }
 
@@ -52,7 +101,13 @@ public class HideAndSeekManager : NetworkBehaviour
         currentState = GameState.HidingPhase;
         currentTimer = hidingTimeLimit;
 
-        TeleportLocalPlayerToPillar();
+        // Chờ 0.5s để mạng tải xong nhân vật mới trước khi cập nhật UI
+        StartCoroutine(WaitAndInitGame());
+    }
+
+    private IEnumerator WaitAndInitGame()
+    {
+        yield return new WaitForSeconds(0.5f);
 
         ControllNPC localPlayer = GetLocalPlayer();
         bool isLocalSeeker = (localPlayer != null && localPlayer.GetComponent<SeekerMechanic>() != null);
@@ -82,33 +137,6 @@ public class HideAndSeekManager : NetworkBehaviour
             if(p.IsOwner) return p;
         }
         return null;
-    }
-
-    private void TeleportLocalPlayerToPillar()
-    {
-        ControllNPC localPlayer = GetLocalPlayer();
-        if (localPlayer == null) return;
-
-        BasePillar pillar = FindObjectOfType<BasePillar>();
-        if (pillar != null)
-        {
-            CharacterController cc = localPlayer.GetComponent<CharacterController>();
-            if (cc != null) cc.enabled = false;
-
-            // Random vị trí quanh cột (bán kính 3 -> 6)
-            Vector2 randCircle = Random.insideUnitCircle.normalized * Random.Range(3f, 6f);
-            Vector3 targetPos = pillar.transform.position + new Vector3(randCircle.x, 0, randCircle.y);
-            
-            if (Physics.Raycast(targetPos + Vector3.up * 5f, Vector3.down, out RaycastHit hit, 10f))
-            {
-                targetPos.y = hit.point.y + 0.1f;
-            }
-
-            localPlayer.transform.position = targetPos;
-            localPlayer.transform.LookAt(pillar.transform.position);
-
-            if (cc != null) cc.enabled = true;
-        }
     }
 
     private void Update()
